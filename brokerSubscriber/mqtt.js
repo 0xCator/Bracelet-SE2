@@ -1,3 +1,4 @@
+
 const mqtt = require('mqtt');
 
 const url = "tcp://bracelet@broker.emqx.io:1883";
@@ -11,7 +12,8 @@ client.on('connect', () => {
 });
 
 client.on('message', (topic, message) => {
-    console.log(message.toString());
+    const json = JSON.parse(message);
+    console.log(json);
 });
 client.on('close', () => {
     console.log('mqtt disconnected');

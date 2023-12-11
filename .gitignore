@@ -37,4 +37,4 @@ build/
 ### Mac OS ###
 .DS_Store
 
-./brokerSubscriber/node_modules/
+/brokerSubscriber/node_modules
