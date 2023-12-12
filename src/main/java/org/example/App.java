@@ -6,46 +6,50 @@ public class App
 {
     public static Scanner scanner = new Scanner(System.in);
     
-    public static void main( String[] args )
-    {
+    public static void main( String[] args ) throws Exception{
 
-        ArrayList<Bracelet> bracelets = new ArrayList<Bracelet>();
-        Bracelet bracelet;
-        System.out.print("\033[H\033[2J");
-        System.out.println("===Bracelet manager===");
-        System.out.println("1. Create new bracelet");
-        System.out.println("2. Show all bracelets");
-        System.out.println("3. Exit");
-        System.out.println("Enter your choice: ");
-        int choice = scanner.nextInt();
 
-        while (choice != 3) {
-            switch (choice) {
-                case 1:
-                    System.out.print("\033[H\033[2J");
-                    System.out.println("Enter bracelet name: ");
-                    System.out.println("Type 'exit' to exit");
-                    String name = scanner.next();
-                    if(name.equals("exit"))
-                        break;
-                    bracelet = new Bracelet(name);
-                    bracelets.add(bracelet);
-                    new Thread(bracelet).start();
-                    break;
-                case 2:
-                    braceletsMenu(bracelets);
-                    break;
-                default:
-                    System.out.println("Invalid choice");
-                    break;
-            }
-            System.out.print("\033[H\033[2J");
-            System.out.println("1. Create new bracelet");
-            System.out.println("2. Show all bracelets");
-            System.out.println("3. Exit");
-            choice = scanner.nextInt();
-        }
 
+         ArrayList<Bracelet> bracelets = new ArrayList<Bracelet>();
+         Bracelet bracelet;
+         System.out.print("\033[H\033[2J");
+         System.out.println("===Bracelet manager===");
+         System.out.println("1. Create new bracelet");
+         System.out.println("2. Show all bracelets");
+         System.out.println("3. Exit");
+         System.out.println("Enter your choice: ");
+         int choice = scanner.nextInt();
+        
+         while (true) {
+             switch (choice) {
+                 case 1:
+                     System.out.print("\033[H\033[2J");
+                     System.out.println("Enter patient token");
+                     System.out.println("Type 'exit' to exit");
+                     String name = scanner.next();
+                     if(name.equals("exit"))
+                         break;
+                     bracelet = new Bracelet(name);
+                     bracelets.add(bracelet);
+                     new Thread(bracelet).start();
+                     break;
+                 case 2:
+                     braceletsMenu(bracelets);
+                     break;
+                 case 3:
+                     System.exit(0);
+                 default:
+                     System.out.println("Invalid choice");
+                     break;
+             }
+             System.out.print("\033[H\033[2J");
+             System.out.println("===Bracelet manager===");
+             System.out.println("1. Create new bracelet");
+             System.out.println("2. Show all bracelets");
+             System.out.println("3. Exit");
+             choice = scanner.nextInt();
+         }
+        
     }
 
     public static void braceletsMenu(ArrayList<Bracelet> bracelets){
@@ -56,7 +60,7 @@ public class App
                 if(i == bracelets.size())
                     System.out.println((i+1) + ". Exit");
                 else
-                    System.out.println((i+1) + ". " + bracelets.get(i).getName());
+                    System.out.println((i+1) + ". " + bracelets.get(i).getPatientToken());
             }
             System.out.println("Enter your choice: ");
             int choice = scanner.nextInt();
@@ -84,7 +88,7 @@ public class App
             switch (choice) {
                 case 1:
                     System.out.print("\033[H\033[2J");
-                    System.out.println("Name: " + bracelet.getName());
+                    System.out.println("Token: " + bracelet.getPatientToken());
                     System.out.println("Age: " + bracelet.getAge());
                     System.out.println("State: " + bracelet.getState());
                     System.out.println("Press any key to continue");

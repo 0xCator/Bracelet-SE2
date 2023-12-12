@@ -2,35 +2,52 @@ package org.example;
 
 
 import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+
 import java.util.*;
 import org.json.JSONObject;
-import org.json.JSONException;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPatch;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClients;
 
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 public class Bracelet implements Runnable{
 
     private static final Random random = new Random();
-    private final int age = 45;
-    private String name;
+    private int age;
     private State state = State.NORMAL;
     private int heartRate;
-    private int[] bloodPressure;
+    private String patientID;
+    private String ID = UUID.randomUUID().toString();
+    private String patientToken = null;
     private double longitude;
     private double latitude;
     private String broker = "tcp://bracelet@broker.emqx.io:1883";
-    private String topic  = "test";
+    private String topic  = "bracelet";
     private MqttClient client;
     private MqttMessage mqttMessage;
-    private JSONObject obj;
-    public Bracelet(String name){
-        this.name = name;
+    private JSONObject bracelet;
+    private JSONObject bloodPressureJSON;
+    private JSONObject locationJSON;
+
+    public Bracelet(String token) throws Exception{
+        if(pair(token) == null)
+            System.out.println("Invalid token");
+        else{
+            System.out.println("Bracelet paired successfully");
+            fetchAge();
+        }
     }
 
-    public String getName(){
-        return this.name;
+    public String getPatientToken(){
+        return this.patientToken;
     }
+
     public int getAge(){
         return this.age;
     }
@@ -42,19 +59,17 @@ public class Bracelet implements Runnable{
             client = new MqttClient(broker, MqttClient.generateClientId());
             client.connect();
         } catch (Exception e) {}
-        for (;;) {
-            heartRate = getHeartRate();
-            bloodPressure = getBloodPressure();
-
+        while(patientToken != null) {
+                calcReading();
             try {
-                obj = new JSONObject();
-                obj.put("name", name);
-                obj.put("heartRate", heartRate);
-                obj.put("this.state", this.state);
-                obj.put("longitude", longitude);
-                obj.put("latitude", latitude);
-                obj.put("bloodPressure", bloodPressure);
-                String msg = obj.toString();
+                bracelet = new JSONObject();
+                bracelet.put("ID", this.ID);
+                bracelet.put("userID", this.patientID);
+                bracelet.put("heartRate", heartRate);
+                bracelet.put("state", this.state.getValue());
+                bracelet.put("location", locationJSON);
+                bracelet.put("bloodPressure", bloodPressureJSON);
+                String msg = bracelet.toString();
                 mqttMessage = new MqttMessage(msg.getBytes());
                 client.publish(topic, mqttMessage);
                 if(this.state == State.CRITICAL)
@@ -67,7 +82,46 @@ public class Bracelet implements Runnable{
             }
         }
     }
+    public void fetchAge() throws Exception{
+        String apiUrl = "http://127.0.0.1:3000/api/users/"+this.patientID;
+        HttpClient httpClient = HttpClients.createDefault();
+        HttpGet httpGet = new HttpGet(apiUrl);
+        httpGet.setHeader("Content-type", "application/json");
+        HttpResponse response = httpClient.execute(httpGet);
+        BufferedReader br = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+        String line ="";
+        while((line = br.readLine()) != null){
+            JSONObject jsonObject = new JSONObject(line);
+            this.age = jsonObject.getJSONObject("userInfo").getInt("age");
+        }
+    }
 
+    public String pair(String token) throws Exception{
+
+        String apiUrl = "http://127.0.0.1:3000/api/functions/pair";
+
+        HttpClient httpClient = HttpClients.createDefault();
+        HttpPatch httpPatch = new HttpPatch(apiUrl);
+        httpPatch.setHeader("Content-type", "application/json");
+        StringEntity stringEntity = new StringEntity("{\"braceletID\": \""+this.ID+"\", \"token\": \""+token+"\"}");
+        httpPatch.setEntity(stringEntity);
+        HttpResponse response = httpClient.execute(httpPatch);
+        BufferedReader br = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+        String line =""; 
+        
+        while((line = br.readLine()) != null){
+            if(line.equals("null") ){
+                return null;
+            }
+            JSONObject jsonObject = new JSONObject(line);
+            if(jsonObject.has("_id")){
+                this.patientToken = token;
+                this.patientID = jsonObject.getString("_id");
+                return this.patientToken;
+            }
+        }
+        return null;
+    }
     public void setState(State state){
         this.state = state;
     }
@@ -75,47 +129,82 @@ public class Bracelet implements Runnable{
         return this.state;
     }
 
-    private int[] getBloodPressure(){
+
+    private void getBloodPressure(State state){
         int systolic = 0;
         int diastolic = 0;
-        if(this.state == State.CRITICAL){
+        if(state == State.CRITICAL){
             systolic = random.nextInt(180 - 140 + 1) + 140;
             diastolic = random.nextInt(120 - 90 + 1) + 90;
-        }else if(this.state == State.WARNING){
+        }else if(state == State.WARNING){
             systolic = random.nextInt(140 - 120 + 1) + 120;
             diastolic = random.nextInt(90 - 80 + 1) + 80;
         }else{
             systolic = random.nextInt(120 - 90 + 1) + 90;
             diastolic = random.nextInt(80 - 60 + 1) + 60;
         }
-        return new int[]{systolic, diastolic};
+        bloodPressureJSON = new JSONObject();
+        try{
+            bloodPressureJSON.put("systolic", systolic);
+            bloodPressureJSON.put("diastolic", diastolic);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
     }
 
-    private int getHeartRate(){
-        int critical_high = 220 - this.age;
+    private int getHeartRate(State state){
+        int critical_high = 220 - age;
         int warning_high  = critical_high - 10;
         int normal        = (int)(critical_high * 0.85);
         int critical_low  = (int)(critical_high * 0.50); 
         int warning_low   = critical_low  + 10;
         boolean lowOrHigh = random.nextBoolean();
         if(lowOrHigh){
-            if(this.state == State.CRITICAL){
+            if(state == State.CRITICAL){
                 return random.nextInt(220 - critical_high + 1) + critical_high;
-            }else if(this.state == State.WARNING){
+            }else if(state == State.WARNING){
                 return random.nextInt(critical_high - warning_high + 1) + warning_high;
             }else{
                 return random.nextInt(warning_high - normal + 1) + normal; 
             }
         }else{
-            if(this.state == State.CRITICAL){
+            if(state == State.CRITICAL){
                 return random.nextInt(critical_low - 30 + 1) + 1;
-            }else if(this.state== State.WARNING){
+            }else if(state== State.WARNING){
                 return random.nextInt(warning_low - critical_low + 1) + critical_low;
             }else{
                 return random.nextInt(normal - warning_low + 1) + warning_low; 
             }
         }
 
+    }
+    private void calcReading(){
+        boolean criticalBloodPressure = random.nextBoolean();
+        boolean criticalHeartRate = random.nextBoolean();
+        if(this.state == State.CRITICAL){
+
+            if(criticalBloodPressure){
+                getBloodPressure(State.CRITICAL);
+            }else
+                getBloodPressure(State.NORMAL);
+            if(criticalHeartRate){
+                this.heartRate = getHeartRate(State.CRITICAL);
+            }else
+                this.heartRate = getHeartRate(State.NORMAL);
+        }
+        else if(this.state == State.WARNING){
+            if(criticalBloodPressure){
+                getBloodPressure(State.WARNING);
+            }else
+                getBloodPressure(State.NORMAL);
+            if(criticalHeartRate){
+                this.heartRate = getHeartRate(State.WARNING);
+            }else
+                this.heartRate = getHeartRate(State.NORMAL);
+        }else{
+            getBloodPressure(State.NORMAL);
+            this.heartRate = getHeartRate(State.NORMAL);
+        }
     }
 
     private void move(){
@@ -142,8 +231,13 @@ public class Bracelet implements Runnable{
 
         this.latitude = Math.max(Math.min(this.latitude, maxLat), minLat);
         this.longitude = Math.max(Math.min(this.longitude, maxLon), minLon);
-
-
+        locationJSON = new JSONObject();
+        try{
+            locationJSON.put("latitude", this.latitude);
+            locationJSON.put("longitude", this.longitude);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
     }
 
     private void calcLocation(){
@@ -159,6 +253,13 @@ public class Bracelet implements Runnable{
         
         this.latitude = minLat + (maxLat - minLat) * random.nextDouble();
         this.longitude = minLon + (maxLon - minLon) * random.nextDouble();
+        locationJSON = new JSONObject();
+        try{
+            locationJSON.put("latitude", this.latitude);
+            locationJSON.put("longitude", this.longitude);
+        }catch(Exception e){
+            e.printStackTrace();
+        }
     }
 
 }
