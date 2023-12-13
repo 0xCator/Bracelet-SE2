@@ -12,28 +12,30 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClients;
 
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.Serializable;
 
-public class Bracelet implements Runnable{
+public class Bracelet implements Runnable, Serializable{
 
+    private static final long serialVersionUID = 1L;
     private static final Random random = new Random();
     private int age;
     private State state = State.NORMAL;
     private int heartRate;
     private String patientID;
-    private String ID = UUID.randomUUID().toString();
+    private String braceletID = UUID.randomUUID().toString();
     private String patientToken = null;
     private double longitude;
     private double latitude;
     private String broker = "tcp://bracelet@broker.emqx.io:1883";
     private String topic  = "bracelet";
-    private MqttClient client;
-    private MqttMessage mqttMessage;
-    private JSONObject bracelet;
-    private JSONObject bloodPressureJSON;
-    private JSONObject locationJSON;
+    private transient MqttClient client;
+    private transient MqttMessage mqttMessage;
+    private transient JSONObject bracelet;
+    private transient JSONObject bloodPressureJSON;
+    private transient JSONObject locationJSON;
+    private transient ArrayList<JSONObject> hospital =  new ArrayList<JSONObject>();
 
     public Bracelet(String token) throws Exception{
         if(pair(token) == null)
@@ -47,9 +49,15 @@ public class Bracelet implements Runnable{
     public String getPatientToken(){
         return this.patientToken;
     }
+    public void setPatientToken(String token){
+        this.patientToken = token;
+    }
 
     public int getAge(){
         return this.age;
+    }
+    public String getBraceletId(){
+        return this.braceletID;
     }
 
     @Override
@@ -63,7 +71,7 @@ public class Bracelet implements Runnable{
                 calcReading();
             try {
                 bracelet = new JSONObject();
-                bracelet.put("ID", this.ID);
+                bracelet.put("braceletID", this.braceletID);
                 bracelet.put("userID", this.patientID);
                 bracelet.put("heartRate", heartRate);
                 bracelet.put("state", this.state.getValue());
@@ -72,10 +80,12 @@ public class Bracelet implements Runnable{
                 String msg = bracelet.toString();
                 mqttMessage = new MqttMessage(msg.getBytes());
                 client.publish(topic, mqttMessage);
-                if(this.state == State.CRITICAL)
+                if(this.state == State.CRITICAL){
                     Thread.sleep(5 * 60 * 1000);
+                    calcSmallestDistance();
+                }
                 else
-                    Thread.sleep(1000);
+                    Thread.sleep(10 * 1000);
                 move();
             } catch (Exception e ) {
                 e.printStackTrace();
@@ -95,6 +105,48 @@ public class Bracelet implements Runnable{
             this.age = jsonObject.getJSONObject("userInfo").getInt("age");
         }
     }
+    private void fetchHospital() throws Exception{
+        String apiUrl = "http://127.0.0.1:3000/api/hospitals";
+        HttpClient httpClient = HttpClients.createDefault();
+        HttpGet httpGet = new HttpGet(apiUrl);
+        httpGet.setHeader("Content-type", "application/json");
+        HttpResponse response = httpClient.execute(httpGet);
+        BufferedReader br = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+        String line ="";
+        while((line = br.readLine()) != null){
+            JSONObject jsonObject = new JSONObject(line);
+            hospital.add(jsonObject);
+        }
+    }
+    private void calcSmallestDistance() throws Exception{
+        fetchHospital();
+        double minDistance = Double.MAX_VALUE;
+        JSONObject nearestHospital = null;
+        for (JSONObject hospital : hospital) {
+            double distance = haversine(this.latitude, this.longitude, hospital.getDouble("latitude"), hospital.getDouble("longitude"));
+            if(distance < minDistance){
+                minDistance = distance;
+                nearestHospital = hospital;
+            }
+        }
+        this.longitude = nearestHospital.getDouble("longitude");
+        this.latitude = nearestHospital.getDouble("latitude");
+        this.locationJSON = new JSONObject(); 
+        this.locationJSON.put("latitude", this.latitude);
+        this.locationJSON.put("longitude", this.longitude);
+
+    }
+    private double haversine(double lat1, double lon1, double lat2, double lon2) {
+        double R = 6372.8; // in kilometers
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        lat1 = Math.toRadians(lat1);
+        lat2 = Math.toRadians(lat2);
+  
+        double a = Math.pow(Math.sin(dLat / 2),2) + Math.pow(Math.sin(dLon / 2),2) * Math.cos(lat1) * Math.cos(lat2);
+        double c = 2 * Math.asin(Math.sqrt(a));
+        return R * c;
+      }
 
     public String pair(String token) throws Exception{
 
@@ -103,7 +155,7 @@ public class Bracelet implements Runnable{
         HttpClient httpClient = HttpClients.createDefault();
         HttpPatch httpPatch = new HttpPatch(apiUrl);
         httpPatch.setHeader("Content-type", "application/json");
-        StringEntity stringEntity = new StringEntity("{\"braceletID\": \""+this.ID+"\", \"token\": \""+token+"\"}");
+        StringEntity stringEntity = new StringEntity("{\"braceletID\": \""+this.braceletID+"\", \"token\": \""+token+"\"}");
         httpPatch.setEntity(stringEntity);
         HttpResponse response = httpClient.execute(httpPatch);
         BufferedReader br = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
