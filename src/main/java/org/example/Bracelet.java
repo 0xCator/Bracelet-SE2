@@ -5,6 +5,7 @@ import org.eclipse.paho.client.mqttv3.*;
 
 import java.util.*;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPatch;
@@ -35,7 +36,7 @@ public class Bracelet implements Runnable, Serializable{
     private transient JSONObject bracelet;
     private transient JSONObject bloodPressureJSON;
     private transient JSONObject locationJSON;
-    private transient ArrayList<JSONObject> hospital =  new ArrayList<JSONObject>();
+    private transient ArrayList<JSONObject> hospital;
 
     public Bracelet(String token) throws Exception{
         if(pair(token) == null)
@@ -81,8 +82,7 @@ public class Bracelet implements Runnable, Serializable{
                 mqttMessage = new MqttMessage(msg.getBytes());
                 client.publish(topic, mqttMessage);
                 if(this.state == State.CRITICAL){
-                    Thread.sleep(5 * 60 * 1000);
-                    pullover();
+                    Thread.sleep(5 *60 *  1000);
                     calcSmallestDistance();
                 }
                 else
@@ -92,15 +92,6 @@ public class Bracelet implements Runnable, Serializable{
                 e.printStackTrace();
             }
         }
-    }
-    public void pullover()throws Exception{
-        String apiUrl = "http://127.0.0.1:3000/api/cars/idle/"+this.patientID;
-        HttpClient httpClient = HttpClients.createDefault();
-        HttpPatch httpPatch = new HttpPatch(apiUrl);
-        httpPatch.setHeader("Content-type", "application/json");
-        HttpResponse response = httpClient.execute(httpPatch);
-
-
     }
     public void fetchAge() throws Exception{
         String apiUrl = "http://127.0.0.1:3000/api/users/"+this.patientID;
@@ -123,9 +114,14 @@ public class Bracelet implements Runnable, Serializable{
         HttpResponse response = httpClient.execute(httpGet);
         BufferedReader br = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
         String line ="";
+        String content = "";
         while((line = br.readLine()) != null){
-            JSONObject jsonObject = new JSONObject(line);
-            hospital.add(jsonObject);
+            content += line;
+        }
+        JSONArray jsonArray = new JSONArray(content);
+        this.hospital = new ArrayList<>();
+        for(int i = 0; i < jsonArray.length() -1; i++){
+            this.hospital.add(jsonArray.getJSONObject(i));
         }
     }
     private void calcSmallestDistance() throws Exception{
