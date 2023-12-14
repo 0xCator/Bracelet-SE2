@@ -96,9 +96,10 @@ public class Bracelet implements Runnable, Serializable{
     public void pullover()throws Exception{
         String apiUrl = "http://127.0.0.1:3000/api/cars/idle/"+this.patientID;
         HttpClient httpClient = HttpClients.createDefault();
-        httpPost = new HttpPost(apiUrl);
-        httpPost.setHeader("Content-type", "application/json");
-        HttpResponse response = httpClient.execute(httpPost);
+        HttpPatch httpPatch = new HttpPatch(apiUrl);
+        httpPatch.setHeader("Content-type", "application/json");
+        HttpResponse response = httpClient.execute(httpPatch);
+
 
     }
     public void fetchAge() throws Exception{

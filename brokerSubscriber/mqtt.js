@@ -23,7 +23,6 @@ client.on('message', (topic, message) => {
         },
         body: JSON.stringify(msgjson)
     })
-
     const userReadingsApi = `http://localhost:3000/api/users/${userId}/readings`
     fetch(userReadingsApi, {
         method: 'PATCH',
@@ -31,7 +30,8 @@ client.on('message', (topic, message) => {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(msgjson)
-    })});
+    })
+});
 client.on('close', () => {
     console.log('mqtt disconnected');
 });
