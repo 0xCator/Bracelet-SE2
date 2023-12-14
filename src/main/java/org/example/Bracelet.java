@@ -82,6 +82,7 @@ public class Bracelet implements Runnable, Serializable{
                 client.publish(topic, mqttMessage);
                 if(this.state == State.CRITICAL){
                     Thread.sleep(5 * 60 * 1000);
+                    pullover();
                     calcSmallestDistance();
                 }
                 else
@@ -91,6 +92,14 @@ public class Bracelet implements Runnable, Serializable{
                 e.printStackTrace();
             }
         }
+    }
+    public void pullover()throws Exception{
+        String apiUrl = "http://127.0.0.1:3000/api/cars/idle/"+this.patientID;
+        HttpClient httpClient = HttpClients.createDefault();
+        httpPost = new HttpPost(apiUrl);
+        httpPost.setHeader("Content-type", "application/json");
+        HttpResponse response = httpClient.execute(httpPost);
+
     }
     public void fetchAge() throws Exception{
         String apiUrl = "http://127.0.0.1:3000/api/users/"+this.patientID;
