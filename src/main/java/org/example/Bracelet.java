@@ -84,6 +84,7 @@ public class Bracelet implements Runnable, Serializable{
                 if(this.state == State.CRITICAL){
                     Thread.sleep(5 *60 *  1000);
                     calcSmallestDistance();
+                    this.state = State.NORMAL;
                 }
                 else
                     Thread.sleep(10 * 1000);
@@ -276,7 +277,7 @@ public class Bracelet implements Runnable, Serializable{
         double minLon = Math.min(point1[1], Math.min(point2[1], Math.min(point3[1], point4[1])));
         double maxLon = Math.max(point1[1], Math.max(point2[1], Math.max(point3[1], point4[1])));
 
-        double range = 0.00001;
+        double range = 0.000001;
 
         boolean changeLatitude = random.nextBoolean();
         boolean changeLongitude = random.nextBoolean();
