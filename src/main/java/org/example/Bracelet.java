@@ -40,6 +40,7 @@ public class Bracelet implements Runnable, Serializable{
     private transient JSONObject bloodPressureJSON;
     private transient JSONObject locationJSON;
     private transient ArrayList<JSONObject> hospital;
+    private transient JSONObject nearestHospitalJSON;
 
     public Bracelet(String token) throws Exception{
         if(pair(token) == null)
@@ -78,6 +79,7 @@ public class Bracelet implements Runnable, Serializable{
         while(patientToken != null) {
                 calcReading();
             try {
+                nearestHospital();
                 bracelet = new JSONObject();
                 bracelet.put("braceletID", this.braceletID);
                 bracelet.put("userID", this.patientID);
@@ -86,6 +88,7 @@ public class Bracelet implements Runnable, Serializable{
                 bracelet.put("location", locationJSON);
                 bracelet.put("bloodPressure", bloodPressureJSON);
                 bracelet.put("isNotify", this.isNotify);
+                bracelet.put("nearestHospital", this.nearestHospitalJSON);
                 String msg = bracelet.toString();
                 mqttMessage = new MqttMessage(msg.getBytes());
                 client.publish(topic, mqttMessage);
@@ -94,7 +97,7 @@ public class Bracelet implements Runnable, Serializable{
                 else
                     this.isNotify = true;
                 if(this.state == State.CRITICAL || this.stop){
-                    Thread.sleep(5 *60 *  1000);
+                    Thread.sleep(3 * 60 * 1000);
                     calcSmallestDistance();
                     this.state = State.NORMAL;
                     this.stop = false;
@@ -134,9 +137,22 @@ public class Bracelet implements Runnable, Serializable{
         }
         JSONArray jsonArray = new JSONArray(content);
         this.hospital = new ArrayList<>();
-        for(int i = 0; i < jsonArray.length() -1; i++){
+        for(int i = 0; i < jsonArray.length(); i++){
             this.hospital.add(jsonArray.getJSONObject(i));
         }
+    }
+    private void nearestHospital() throws Exception{
+        fetchHospital();
+        double minDistance = Double.MAX_VALUE;
+        JSONObject nearestHospital = null;
+        for (JSONObject hospital : this.hospital) {
+            double distance = haversine(this.latitude, this.longitude, hospital.getDouble("latitude"), hospital.getDouble("longitude"));
+            if(distance < minDistance){
+                minDistance = distance;
+                nearestHospital = hospital;
+            }
+        }
+        this.nearestHospitalJSON = nearestHospital;
     }
     private void calcSmallestDistance() throws Exception{
         fetchHospital();
@@ -298,7 +314,7 @@ public class Bracelet implements Runnable, Serializable{
         double minLon = Math.min(point1[1], Math.min(point2[1], Math.min(point3[1], point4[1])));
         double maxLon = Math.max(point1[1], Math.max(point2[1], Math.max(point3[1], point4[1])));
 
-        double range = 0.000001;
+        double range = 0.0001;
 
         boolean changeLatitude = random.nextBoolean();
         boolean changeLongitude = random.nextBoolean();
