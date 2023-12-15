@@ -28,6 +28,7 @@ public class App
         //server 
         HttpServer server = HttpServer.create(new InetSocketAddress(1337), 0);
         server.createContext("/api/unpair", new braceletHandler());
+        server.createContext("/api/stop", new stopHandler());
 
         server.setExecutor(null);
         server.start();
@@ -188,35 +189,64 @@ public class App
         }
     }
 
-static class braceletHandler implements HttpHandler {
-    @Override
-    public void handle(HttpExchange t) throws IOException {
-        String reqestMethod = t.getRequestMethod();
-        if(reqestMethod.equals("POST")){
-            InputStream requestBody = t.getRequestBody();
-            byte[] bytes = requestBody.readAllBytes();
-            JSONObject body;
-            try{
-                body = new JSONObject(new String(bytes));
-                String braceletId = body.getString("braceletId");
-                for (Bracelet bracelet : bracelets) {
-                    if(bracelet.getBraceletId().equals(braceletId)){
-                        bracelet.setPatientToken(null);
-                        bracelets.remove(bracelet);
-                        break;
+    static class stopHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException{
+            String  requestMethod = t.getRequestMethod();
+            if(requestMethod.equals("POST")){
+                InputStream requestBody = t.getRequestBody();
+                byte[] bytes = requestBody.readAllBytes();
+                JSONObject body; 
+                try{
+                    body = new JSONObject(new String(bytes));
+                    String braceletId = body.getString("braceletId");
+                    for(Bracelet bracelet : bracelets){
+                        if(bracelet.getBraceletId().equals(braceletId)){
+                            bracelet.Stop();
+                            break;
+                        }
                     }
+                } catch(Exception e){
+                    t.sendResponseHeaders(400, 0);
+                    t.getResponseBody().close();
                 }
-            }catch(Exception e){
-                t.sendResponseHeaders(400, 0);
+                t.sendResponseHeaders(200, 0);
+                t.getResponseBody().close();
+            }else{
+                t.sendResponseHeaders(404, 0);
                 t.getResponseBody().close();
             }
-            t.sendResponseHeaders(200,0);
-            t.getResponseBody().close();
-        }else{
-            t.sendResponseHeaders(405, 0);
-            t.getResponseBody().close();
         }
     }
-}
+    static class braceletHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            String reqestMethod = t.getRequestMethod();
+            if(reqestMethod.equals("POST")){
+                InputStream requestBody = t.getRequestBody();
+                byte[] bytes = requestBody.readAllBytes();
+                JSONObject body;
+                try{
+                    body = new JSONObject(new String(bytes));
+                    String braceletId = body.getString("braceletId");
+                    for (Bracelet bracelet : bracelets) {
+                        if(bracelet.getBraceletId().equals(braceletId)){
+                            bracelet.setPatientToken(null);
+                            bracelets.remove(bracelet);
+                            break;
+                        }
+                    }
+                }catch(Exception e){
+                    t.sendResponseHeaders(400, 0);
+                    t.getResponseBody().close();
+                }
+                t.sendResponseHeaders(200,0);
+                t.getResponseBody().close();
+            }else{
+                t.sendResponseHeaders(405, 0);
+                t.getResponseBody().close();
+            }
+        }
+    }
 
 }

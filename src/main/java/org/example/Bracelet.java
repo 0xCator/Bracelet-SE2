@@ -22,6 +22,7 @@ public class Bracelet implements Runnable, Serializable{
     private static final long serialVersionUID = 1L;
     private static final Random random = new Random();
     private int age;
+    private int warningCount;
     private State state = State.NORMAL;
     private int heartRate;
     private String patientID;
@@ -31,6 +32,8 @@ public class Bracelet implements Runnable, Serializable{
     private double latitude;
     private String broker = "tcp://bracelet@broker.emqx.io:1883";
     private String topic  = "bracelet";
+    private boolean stop = false;
+    private boolean isNotify = true;
     private transient MqttClient client;
     private transient MqttMessage mqttMessage;
     private transient JSONObject bracelet;
@@ -60,9 +63,13 @@ public class Bracelet implements Runnable, Serializable{
     public String getBraceletId(){
         return this.braceletID;
     }
+    public void Stop(){
+        this.stop =true;
+    }
 
     @Override
     public void run() {
+        this.warningCount = 0;
         calcLocation();
         try {
             client = new MqttClient(broker, MqttClient.generateClientId());
@@ -78,13 +85,19 @@ public class Bracelet implements Runnable, Serializable{
                 bracelet.put("state", this.state.getValue());
                 bracelet.put("location", locationJSON);
                 bracelet.put("bloodPressure", bloodPressureJSON);
+                bracelet.put("isNotify", this.isNotify);
                 String msg = bracelet.toString();
                 mqttMessage = new MqttMessage(msg.getBytes());
                 client.publish(topic, mqttMessage);
-                if(this.state == State.CRITICAL){
+                if(this.warningCount > 0)
+                    this.isNotify = false;
+                else
+                    this.isNotify = true;
+                if(this.state == State.CRITICAL || this.stop){
                     Thread.sleep(5 *60 *  1000);
                     calcSmallestDistance();
                     this.state = State.NORMAL;
+                    this.stop = false;
                 }
                 else
                     Thread.sleep(10 * 1000);
@@ -244,25 +257,33 @@ public class Bracelet implements Runnable, Serializable{
 
             if(criticalBloodPressure){
                 getBloodPressure(State.CRITICAL);
-            }else
+            }else{
                 getBloodPressure(State.NORMAL);
+            }
             if(criticalHeartRate){
                 this.heartRate = getHeartRate(State.CRITICAL);
-            }else
+                this.warningCount++;
+            }else{
                 this.heartRate = getHeartRate(State.NORMAL);
+            }
+            this.warningCount = 0;
         }
         else if(this.state == State.WARNING){
             if(criticalBloodPressure){
                 getBloodPressure(State.WARNING);
-            }else
+            }else{
                 getBloodPressure(State.NORMAL);
+            }
             if(criticalHeartRate){
                 this.heartRate = getHeartRate(State.WARNING);
-            }else
+            }else{
                 this.heartRate = getHeartRate(State.NORMAL);
+            }
+            this.warningCount++;
         }else{
             getBloodPressure(State.NORMAL);
             this.heartRate = getHeartRate(State.NORMAL);
+            this.warningCount = 0;
         }
     }
 
