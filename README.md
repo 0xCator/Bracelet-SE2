@@ -1,7 +1,7 @@
 # Bracelet Simulation
 
-This is simulation programe that simulate bracelete the calculate heart rate and blood pressure, this project made for software engineering course in FCIH you can find full projcet in 
-[backend](https://github.com/0xCator/SE2Back) and [frontend](https://github.com/0xCator/SE2Front).
+This is a simulation program that simulates bracelete to calculate heart rate and blood pressure. This project was created  for software engineering course at FCIH. You can find full projcet in 
+the [backend](https://github.com/0xCator/SE2Back) and [frontend](https://github.com/0xCator/SE2Front) repositories.
 
 
 ## Quick start
@@ -18,4 +18,4 @@ This is simulation programe that simulate bracelete the calculate heart rate and
  $ node ./borkerSubscriber/mqtt.js # start the subscriber 
 ```
 
-Make sure that you have [Mosquitto](https://mosquitto.org/download/)
+Make sure that you have [Mosquitto](https://mosquitto.org/download/) installed.
